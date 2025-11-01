@@ -18,11 +18,7 @@ The **Build** menu provides tools for data analysis and tools for data analysis 
 
 ### Manage
 
-On the **Manage** menu, administrators can manage the SageMaker Unified Studio domains, account associations, and end-user permissions.
-
-## Q assistant
-
-Use Amazon Q, at any time from the top right of SageMaker Unified Studio toolbar, to generate code, tests, and debugs, and implement generated code with multi-step planning and reasoning capabilities.
+On the **Manage** menu, administrators can manage the SageMaker Unified Studio domains, account associatioAmazon Q, at any time from the top right of SageMaker Unified Studio toolbar, to generate code, tests, and debugs, and implement generated code with multi-step planning and reasoning capabilities.
 
 ## Projects
 
@@ -80,4 +76,4 @@ Each project comes with a default storage powered by Amazon S3 or a 3rd party re
 
 ## Data and Model catalog
 
-We hope you enjoy using SageMaker Unified Studio and we look forward to hearing from you. Please use the Feedback icon in the top right corner of your screen to provide feedback.
+We hope you enjoy using SageMaker Unified Studio and we look forward to hearing from you. Please use the Feedback icon in the top right corner of your screen to provide feed
