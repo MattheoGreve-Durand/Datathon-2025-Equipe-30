@@ -8,6 +8,7 @@ import numpy as np
 from pydantic import BaseModel
 import instructor
 import io
+from PIL import Image
 
 sys.path.insert(0, '/home/sagemaker-user/shared')
 
@@ -373,16 +374,22 @@ class SpiderChart:
 
         buffer.seek(0)
 
+        image = Image.open(buffer)
+
         s3 = boto3.client("s3")
         s3.put_object(
             Bucket=self.BUCKET,
-            Key=f"{self.image_prefix}/{self.ticker}",
+            Key=f"{self.image_prefix}/SpiderCharts/{self.ticker}",
             Body=buffer.getvalue(),
             ContentType="image/png"
         )
 
         print(f"DEBUG: Radar chart uploaded to s3://{self.BUCKET}/{self.image_prefix}")
         buffer.close()
+        return image
+    
+    def getPositiveImpact():
+        return self.PROFITABILITY_SCORE*0.25 + self.GROWTH_SCORE*0.25 + self.STABILITY_SCORE*0.2 + self.MARKET_SCORE*0.15 + self.EFFICIENCY_SCORE**0.1 + self.CAPITAL_COST_SCORE*0.05
 
 if __name__ == "__main__":
     apple = SpiderChart("COST")
