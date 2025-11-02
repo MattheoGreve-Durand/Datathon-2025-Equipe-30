@@ -3,3 +3,4 @@ instructor
 pydantic
 bs4
 path
+yfinance
