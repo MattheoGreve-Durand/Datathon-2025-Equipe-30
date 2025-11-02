@@ -2,18 +2,22 @@ import boto3
 import instructor
 import json
 import path
+import sys
 from pydantic import BaseModel
+
+sys.path.append('../dataExtractionFromLaw')
 from dataExtractionFromLaw import getLawInformations
 
 s3 = boto3.client("s3")
 bedrock_client = boto3.client('bedrock-runtime')
 client = instructor.from_bedrock(bedrock_client)
 
-BUCKET_NAME = "csv-file-store-ec51f700"   
-PREFIX = "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/fillings"
+BUCKET_NAME = "csv-file-store-ec51f700"
+PREFIX = "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/fillingsResume"
 
 response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=PREFIX)
 print(response)
+
 
 class Score(BaseModel):
     score: int
@@ -56,7 +60,6 @@ def getScoreAndReasoning(data: str, law: str) -> Score:
                         "Here are the inputs:\n\n"
                         f"--- COMPANY DATA ---\n{data}\n\n"
                         f"--- LAW DATA ---\n{law}"
-                        
                     ),
                 },
             ],
@@ -65,7 +68,7 @@ def getScoreAndReasoning(data: str, law: str) -> Score:
                 "maxTokens": 64000,
             }
         )
-    
+
     return {"score": response.score, "reasoning": response.reasoning}
 
 
@@ -86,6 +89,8 @@ def getConcernedEntreprises(law_summarized: str, entreprises_path: str) -> dict:
 
             print(f"📂 Lecture du fichier : {key}")
 
+            continue
+
             file_obj = s3.get_object(Bucket=BUCKET_NAME, Key=key)
             file_content = file_obj["Body"].read().decode("utf-8")
 
@@ -101,4 +106,5 @@ def getConcernedEntreprises(law_summarized: str, entreprises_path: str) -> dict:
 
 
 if __name__ == "__main__":
-    process_all_fillings()
+    law_sum = getLawInformations("csv-file-store-ec51f700", "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html")
+    getConcernedEntreprises(law_sum, PREFIX)
