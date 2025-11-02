@@ -3,7 +3,9 @@ import instructor
 import json
 import sys
 import os
+import math
 from pydantic import BaseModel
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from dataExtractionFromLaw.dataExtractionFromLaw import getLawInformations
@@ -52,7 +54,7 @@ def getScoreAndReasoning(data: str, law: str) -> Score:
                         "Return your analysis following this schema:\n"
                         "{\n"
                         "  \"score\": <integer between 0 and 5>,\n"
-                        "  \"reasoning\": <textual explanation of your reasoning>\n"
+                        "  \"reasoning\": <textual explanation of your reasoning (1 sentence)>\n"
                         "}\n\n"
                         "Here are the inputs:\n\n"
                         f"--- COMPANY DATA ---\n{data}\n\n"
@@ -69,49 +71,88 @@ def getScoreAndReasoning(data: str, law: str) -> Score:
     return {"score": response.score, "reasoning": response.reasoning}
 
 
-def getConcernedEntreprises(law_summarized: str, entreprises_path: str) -> dict:
-
+def getConcernedEntreprises(law_summarized, entreprises_path: str, max_workers: int = 7) -> dict:
+    Alpha = 1
+    Beta = 0.535
+    Gama = 0.06
+    def temporal_impact(Alpha, Beta, Gama, time_before_application, t_conformite, revision_probability):
+        try:
+            return Alpha * math.exp(
+                -Beta * ((time_before_application) / (t_conformite))
+            ) + Gama * revision_probability
+        except ZeroDivisionError:
+            return 0
+    
     response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=PREFIX)
 
     if "Contents" not in response:
         print("Aucun fichier trouvé dans ce chemin S3.")
-    else:
-        results = {}
-        for obj in response["Contents"]:
-            key = obj["Key"]
-            folder_name = os.path.dirname(key).split('/')[-1]
+        return {}
 
-            if not key.endswith(".json"):
-                continue
+    results = {}
 
-            print(f"📂 Lecture du fichier : {key}")
-
-
+    def process_company(key):
+        """Fonction exécutée dans chaque thread"""
+        folder_name = os.path.dirname(key).split('/')[-1]
+        try:
             file_obj = s3.get_object(Bucket=BUCKET_NAME, Key=key)
             file_content = file_obj["Body"].read().decode("utf-8")
+            data = json.loads(file_content)
 
-
+            # ⚠️ Assure-toi que data contient t_conformite
             try:
-                data = json.loads(file_content)
-                print(f"🔍 Analysing: {key}")
-                results[folder_name] = getScoreAndReasoning(data, law_summarized)
+                t_conformite = data.get("t_conformite", 1)
+            except Exception as e:
+                t_conformite = 1
+                print(e)
 
+            # Calcul du score via Bedrock
+            result = getScoreAndReasoning(json.dumps(data), law_summarized.model_dump_json())
 
-            except json.JSONDecodeError:
-                print(f"⚠️ Erreur de parsing JSON dans {key}")
-                continue
-        sorted_results = dict(
-        sorted(
+            # Score final pondéré
+            score = result["score"]
+            temporial = temporal_impact(Alpha, Beta, Gama, law_summarized.time_before_application, t_conformite, law_summarized.revision_probability)
+            score_final = score * temporial
+
+            return folder_name, {
+                "score": score,
+                "impact_temporiel": temporial,
+                "score_final": score_final,
+            }
+
+        except Exception as e:
+            print(f"❌ Erreur sur {folder_name}: {e}")
+            return folder_name, {"error": str(e)}
+
+    # --- Thread pool
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(process_company, obj["Key"])
+            for obj in response["Contents"]
+            if obj["Key"].endswith(".json")
+        ]
+
+        for future in as_completed(futures):
+            folder_name, result = future.result()
+            results[folder_name] = result
+            if "score" in result:
+                print(f"✅ {folder_name}: score={result['score']} | t={result['impact_temporiel']} | final={result['score_final']}")
+            else:
+                print(f"⚠️ {folder_name}: erreur ({result.get('error')})")
+
+    # Tri des résultats par score_final décroissant
+    sorted_results = sorted(
             results.items(),
-            key=lambda item: item[1].score if hasattr(item[1], "score") else 0,
-            reverse=True
+            key=lambda item: item[1].get("score_final", 0),
+            reverse=True,
         )
-    )
-        print(sorted_results)
-        return sorted_results
+    
+
+    return dict(sorted_results[:10])
 
 
 if __name__ == "__main__":
     law_sum = getLawInformations("csv-file-store-ec51f700", "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html")
-    getConcernedEntreprises(law_sum, PREFIX)
+    print("DEBUG: TOP10")
+    print(getConcernedEntreprises(law_sum, PREFIX))
     

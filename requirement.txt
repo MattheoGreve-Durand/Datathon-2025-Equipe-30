@@ -4,3 +4,6 @@ pydantic
 bs4
 path
 yfinance
+numpy
+matplotlib
+io
