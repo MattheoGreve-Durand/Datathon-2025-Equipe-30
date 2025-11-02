@@ -4,6 +4,7 @@ import json
 import sys
 import os
 from pydantic import BaseModel
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from dataExtractionFromLaw.dataExtractionFromLaw import getLawInformations
@@ -52,7 +53,7 @@ def getScoreAndReasoning(data: str, law: str) -> Score:
                         "Return your analysis following this schema:\n"
                         "{\n"
                         "  \"score\": <integer between 0 and 5>,\n"
-                        "  \"reasoning\": <textual explanation of your reasoning>\n"
+                        "  \"reasoning\": <textual explanation of your reasoning (1 sentence)>\n"
                         "}\n\n"
                         "Here are the inputs:\n\n"
                         f"--- COMPANY DATA ---\n{data}\n\n"
@@ -69,14 +70,18 @@ def getScoreAndReasoning(data: str, law: str) -> Score:
     return {"score": response.score, "reasoning": response.reasoning}
 
 
-def getConcernedEntreprises(law_summarized: str, entreprises_path: str) -> dict:
-
+def getConcernedEntreprises(law_summarized: str, entreprises_path: str, max_workers: int = 7) -> dict:
     response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=PREFIX)
 
     if "Contents" not in response:
         print("Aucun fichier trouvé dans ce chemin S3.")
-    else:
-        results = {}
+        return {}
+
+    results = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {}
+
         for obj in response["Contents"]:
             key = obj["Key"]
             folder_name = os.path.dirname(key).split('/')[-1]
@@ -84,31 +89,35 @@ def getConcernedEntreprises(law_summarized: str, entreprises_path: str) -> dict:
             if not key.endswith(".json"):
                 continue
 
-            print(f"📂 Lecture du fichier : {key}")
-
-
             file_obj = s3.get_object(Bucket=BUCKET_NAME, Key=key)
             file_content = file_obj["Body"].read().decode("utf-8")
 
-
             try:
                 data = json.loads(file_content)
-                print(f"🔍 Analysing: {key}")
-                results[folder_name] = getScoreAndReasoning(data, law_summarized)
-
+                futures[executor.submit(getScoreAndReasoning, data, law_summarized)] = folder_name
 
             except json.JSONDecodeError:
                 print(f"⚠️ Erreur de parsing JSON dans {key}")
                 continue
-        sorted_results = dict(
+
+        for future in as_completed(futures):
+            folder_name = futures[future]
+            try:
+                result = future.result()
+                results[folder_name] = result
+                print(f"✅ {folder_name}: score={result['score']}")
+            except Exception as e:
+                print(f"❌ Erreur sur {folder_name}: {e}")
+
+    sorted_results = dict(
         sorted(
             results.items(),
-            key=lambda item: item[1].score if hasattr(item[1], "score") else 0,
+            key=lambda item: item[1]["score"] if "score" in item[1] else 0,
             reverse=True
         )
     )
-        print(sorted_results)
-        return sorted_results
+
+    return sorted_results
 
 
 if __name__ == "__main__":
