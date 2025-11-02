@@ -1,7 +1,5 @@
 import boto3
 import instructor
-import os
-from IPython.display import Markdown, display
 from pydantic import BaseModel
 from bs4 import BeautifulSoup
 import re
@@ -56,7 +54,7 @@ def extract_relevant_sections(html_text):
         extract_section("ITEM 1.", "ITEM 1A."),  # Business
         extract_section("ITEM 1A.", "ITEM 2."),  # Risk Factors
         extract_section("ITEM 2.", "ITEM 3."),   # Properties
-        extract_section("ITEM 7.", "ITEM 7A."),  # MD&A
+        #extract_section("ITEM 7.", "ITEM 7A."),  # MD&A
     ]
 
     combined_text = "\n\n".join([s for s in sections if s.strip() != ""])

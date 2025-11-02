@@ -1,7 +1,6 @@
 import boto3
 import instructor
-import os
-from IPython.display import Markdown, display
+import BaseModel
 
 s3 = boto3.client("s3")
 bedrock_client = boto3.client('bedrock-runtime')

@@ -1,5 +1,4 @@
 from bs4 import BeautifulSoup
-import re
 import boto3
 import instructor
 
@@ -25,6 +24,7 @@ def extract_only_tables(html_text: str) -> str:
             extracted_tables.append("[TABLE]\n" + "\n".join(rows_text) + "\n[/TABLE]")
 
     return "\n\n".join(extracted_tables).strip()
+
 
 s3 = boto3.client("s3")
 bedrock_client = boto3.client('bedrock-runtime')
