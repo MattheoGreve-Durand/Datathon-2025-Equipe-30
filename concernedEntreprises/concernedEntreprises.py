@@ -160,7 +160,7 @@ def getConcernedEntreprises(law_summarized, entreprises_path: str, investment_ho
         )
     
 
-    return dict(sorted_results[:10]), dict(sorted_resutls)
+    return dict(sorted_results[:10]), dict(sorted_results)
 
 
 if __name__ == "__main__":

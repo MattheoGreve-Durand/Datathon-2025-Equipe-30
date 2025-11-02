@@ -127,11 +127,11 @@ if st.button("Tok me"):
     if uploaded_file is not None:
         with st.spinner("⏳ Analyse du fichier en cours..."):
             try:
-                result = getLawInformations(uploaded_file)
-                result = functions.getTop10(result, investment_horizon)
+                law_resume = getLawInformations(uploaded_file)
+                top10Entreprises, _ = functions.getTop10(law_resume, investment_horizon)
                 st.success("✅ Analyse terminée avec succès !")
                 st.markdown("### Résultat de l’analyse :")
-                st.write(result)
+                st.write(top10Entreprises)
                 st.markdown(f"📊 **Horizon sélectionné :** {investment_horizon}")
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement : {e}")
