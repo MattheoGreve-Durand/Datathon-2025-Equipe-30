@@ -1,6 +1,6 @@
 import boto3
 import instructor
-import BaseModel
+from pydantic import BaseModel
 
 s3 = boto3.client("s3")
 bedrock_client = boto3.client('bedrock-runtime')

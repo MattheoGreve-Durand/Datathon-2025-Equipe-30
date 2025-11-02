@@ -3,10 +3,11 @@ import instructor
 import json
 import path
 import sys
+import os
 from pydantic import BaseModel
 
-sys.path.append('../dataExtractionFromLaw')
-from dataExtractionFromLaw import getLawInformations
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from dataExtractionFromLaw.dataExtractionFromLaw import getLawInformations
 
 s3 = boto3.client("s3")
 bedrock_client = boto3.client('bedrock-runtime')

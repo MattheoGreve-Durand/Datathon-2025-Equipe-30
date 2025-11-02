@@ -37,8 +37,8 @@ def extract_relevant_sections(html_text):
 
     text = soup.get_text(separator="\n")
 
-    text = re.sub(r'\s+', ' ', text)  # supprimer les espaces multiples
-    text = text.replace("\xa0", " ")  # supprimer les caractères spéciaux
+    text = re.sub(r'\s+', ' ', text)
+    text = text.replace("\xa0", " ")
     text_upper = text.upper()
 
     def extract_section(start_marker, end_marker):
@@ -54,7 +54,7 @@ def extract_relevant_sections(html_text):
         extract_section("ITEM 1.", "ITEM 1A."),  # Business
         extract_section("ITEM 1A.", "ITEM 2."),  # Risk Factors
         extract_section("ITEM 2.", "ITEM 3."),   # Properties
-        #extract_section("ITEM 7.", "ITEM 7A."),  # MD&A
+        extract_section("ITEM 7.", "ITEM 7A."),  # MD&A
     ]
 
     combined_text = "\n\n".join([s for s in sections if s.strip() != ""])
