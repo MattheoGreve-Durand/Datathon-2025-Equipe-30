@@ -71,14 +71,26 @@ def getScoreAndReasoning(data: str, law: str) -> Score:
     return {"score": response.score, "reasoning": response.reasoning}
 
 
-def getConcernedEntreprises(law_summarized, entreprises_path: str, max_workers: int = 7) -> dict:
-    Alpha = 1
-    Beta = 0.535
+def getConcernedEntreprises(law_summarized, entreprises_path: str, investment_horizon, max_workers: int = 7) -> dict:
+    Alpha = 1 #court terme
+    Beta = 0.8
     Gama = 0.06
-    def temporal_impact(Alpha, Beta, Gama, time_before_application, t_conformite, revision_probability):
+    t_eff = 6 - law_summarized.time_before_application
+    if (investment_horizon == "Moyen terme"):
+        Beta = 0.535
+        Gama = 0.06
+        t_eff = 24 - law_summarized.time_before_application
+    elif (investment_horizon == "Long terme"):
+        Beta = 0.4
+        Gama = 0.1
+        t_eff = 60 - law_summarized.time_before_application
+
+    if (t_eff < 0): t_eff = 0
+
+    def temporal_impact(Alpha, Beta, Gama, t_eff, t_conformite, revision_probability):
         try:
             return Alpha * math.exp(
-                -Beta * ((time_before_application) / (t_conformite))
+                -Beta * ((t_eff) / (t_conformite))
             ) + Gama * revision_probability
         except ZeroDivisionError:
             return 0
@@ -111,7 +123,7 @@ def getConcernedEntreprises(law_summarized, entreprises_path: str, max_workers: 
 
             # Score final pondéré
             score = result["score"]
-            temporial = temporal_impact(Alpha, Beta, Gama, law_summarized.time_before_application, t_conformite, law_summarized.revision_probability)
+            temporial = temporal_impact(Alpha, Beta, Gama, t_eff, t_conformite, law_summarized.revision_probability)
             score_final = score * temporial
 
             return folder_name, {
@@ -148,11 +160,9 @@ def getConcernedEntreprises(law_summarized, entreprises_path: str, max_workers: 
         )
     
 
-    return dict(sorted_results[:10])
+    return dict(sorted_results[:10]), dict(sorted_resutls)
 
 
 if __name__ == "__main__":
     law_sum = getLawInformations("csv-file-store-ec51f700", "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html")
     print("DEBUG: TOP10")
-    print(getConcernedEntreprises(law_sum, PREFIX))
-    

@@ -19,14 +19,8 @@ class Law(BaseModel):
     revision_probability: float
 
 
-
-BUCKET = "csv-file-store-ec51f700"
-KEY = "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html"
-
-
-def getLawInformations(bucket: str = BUCKET, key: str = KEY) -> Law:
-    obj = s3.get_object(Bucket=bucket, Key=key)
-    text_of_law = obj["Body"].read().decode("utf-8")
+def getLawInformations(file) -> Law:
+    text_of_law = file.read().decode("utf-8")
     response = client.chat.completions.create(
         modelId="global.anthropic.claude-haiku-4-5-20251001-v1:0",
         messages=[
