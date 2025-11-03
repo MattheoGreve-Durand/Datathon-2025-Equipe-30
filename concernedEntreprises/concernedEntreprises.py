@@ -147,10 +147,6 @@ def getConcernedEntreprises(law_summarized, entreprises_path: str, investment_ho
         for future in as_completed(futures):
             folder_name, result = future.result()
             results[folder_name] = result
-            if "score" in result:
-                print(f"✅ {folder_name}: score={result['score']} | t={result['impact_temporiel']} | final={result['score_final']}")
-            else:
-                print(f"⚠️ {folder_name}: erreur ({result.get('error')})")
 
     # Tri des résultats par score_final décroissant
     sorted_results = sorted(
