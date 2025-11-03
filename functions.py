@@ -53,7 +53,7 @@ class Functions:
 
     def getSpiderCharts(self, tickers, LAW_SUM):
         for ticker in tickers:
-            self.spiderCharts[ticker] = SpiderChart(ticker, LAW_SUM)
+            self.spiderCharts[ticker] = SpiderChart(ticker, LAW_SUM).drawHexagonRadar()
         return self.spiderCharts
 
     def computePositiveImpact(self, array: dict, law_sum, prompt=None):
@@ -321,11 +321,10 @@ if __name__ == "__main__":
     functions = Functions()
 
     # Portefeuille initial
-    initial_portfolio = {
-        "AAPL": 10, "MSFT": 10, "GOOGL": 10, "AMZN": 10, "TSLA": 10,
-        "META": 10, "NVDA": 10, "PEP": 10, "COST": 10, "AVGO": 10
-    }
-    functions.importPorteFolio(initial_portfolio)
+    functions.importPorteFolio({
+        "AAPL": 5, "MSFT": 15, "GOOGL": 8, "AMZN": 12, "TSLA": 7,
+        "META": 10, "NVDA": 9, "PEP": 11, "COST": 6, "AVGO": 13
+    })
 
     # Récupérer le texte du fichier S3
     s3 = boto3.client("s3")
