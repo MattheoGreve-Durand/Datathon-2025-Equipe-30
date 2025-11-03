@@ -49,12 +49,9 @@ class SpiderChart:
         html_key = html_files[0]
         obj = s3.get_object(Bucket=self.BUCKET, Key=html_key)
         html_content = obj["Body"].read().decode("utf-8")
-        #print(html_content)
 
-        print("DEBUG: Getting all the data...")
         self.numerical_data = getNumericalFrom10K(extract_only_tables(html_content))
 
-        print(f"DEBUG: {self.numerical_data}")
         # Data from 10K
         self.net_income = self.numerical_data.net_income
         self.revenue = self.numerical_data.revenue
@@ -282,10 +279,8 @@ class SpiderChart:
         return prompt
 
     def getSpiderChartScores(self, prompt, law):
-        #print("DEBUG: Law resume: ", law)
         bedrock_client = boto3.client('bedrock-runtime')
         client = instructor.from_bedrock(bedrock_client)
-        print("DEBUG: Sending prompte, awaiting response...")
         response = client.chat.completions.create(
             modelId= "anthropic.claude-3-sonnet-20240229-v1:0",
             messages=[
@@ -316,8 +311,6 @@ class SpiderChart:
             "Capital Cost"
         ]
 
-        print("DEBUG: Getting Scores")
-        print("DEBUG: Prompt: ", self.generate_bedrock_prompt())
         score = self.getSpiderChartScores(self.generate_bedrock_prompt(), self.text_of_law)
         
         self.PROFITABILITY_SCORE = score.PROFITABILITY_SCORE
@@ -335,9 +328,6 @@ class SpiderChart:
             self.EFFICIENCY_SCORE,
             self.CAPITAL_COST_SCORE
         ]
-
-        print("DEBUG: Values:", values)
-        print("DEBUG: Drawing...")
 
         # === 1. Fermer le polygone (revenir au début) ===
         values += values[:1]
@@ -384,7 +374,6 @@ class SpiderChart:
             ContentType="image/png"
         )
 
-        print(f"DEBUG: Radar chart uploaded to s3://{self.BUCKET}/{self.image_prefix}")
         buffer.close()
         return image
     

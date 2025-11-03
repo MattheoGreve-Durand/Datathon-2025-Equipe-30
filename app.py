@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from functions import functions
 from dataExtractionFromLaw.dataExtractionFromLaw import getLawInformations
+import json
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Tok Tok Investissement", page_icon="📈", layout="centered")
@@ -130,10 +131,18 @@ st.markdown("""
 # --- APP CONTENT ---
 st.title("📈 Tok Tok Investissement")
 
-user_prompt = st.text_input(" ", placeholder="Demande des conseils sur les entreprises du S&P500", label_visibility="collapsed")
+user_portfolio_str = st.text_input(" ", placeholder="Ajoutez votre porfolio S&P500", label_visibility="collapsed")
 
-# 
-user_porfolio = st.text_input(" ", placeholder="Ajoutez votre porfolio S&P500", label_visibility="collapsed")
+user_portfolio = None  # valeur par défaut
+
+# --- Conversion sécurisée en JSON ---
+if user_portfolio_str:
+    try:
+        user_portfolio = json.loads(user_portfolio_str)
+        functions.importPorteFolio(user_portfolio)
+        st.success("✅ Portfolio chargé avec succès !")
+    except json.JSONDecodeError as e:
+        st.error(f"⚠️ Erreur de format JSON : {e}")
 
 # Liste déroulante
 st.markdown("<p class='custom-label'>Choisissez votre horizon d’investissement :</p>", unsafe_allow_html=True)
@@ -161,6 +170,7 @@ if st.button("Tok me"):
             try:
                 law_resume = getLawInformations(uploaded_file)
                 results = functions.getTop10(law_resume, investment_horizon)
+                results = dict(list(results.items())[:10])
 
                 # Convertir le dictionnaire en DataFrame
                 df = pd.DataFrame.from_dict(results, orient="index")

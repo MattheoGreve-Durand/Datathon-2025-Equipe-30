@@ -18,6 +18,7 @@ class Functions:
         self.portefolio = {}            # all tickers combined
         self.spiderCharts = {}
         self.new_portefolio = {}
+        self.espace_disponible = 0
 
     # === utilitaire : ensure structure is dict with 'weight' ===
     @staticmethod
@@ -40,6 +41,7 @@ class Functions:
             self.portefolio[ticker] = entry
             if ticker in self.top_10_entreprises:
                 self.portefolio_dynamic[ticker] = entry.copy()
+                print("portefolio added to dynamic")
             else:
                 self.portefolio_constant[ticker] = entry.copy()
         return True
@@ -110,7 +112,7 @@ class Functions:
             raise KeyError(f"{ticker} not in dynamic portfolio")
         vuln = self.getVulnerability(ticker)
         weight = float(self.portefolio_dynamic[ticker].get("weight", 0.0))
-        return vuln * (weight / 100.0)
+        return vuln * (1-(weight / 100.0))
 
     def getRiskEffectifPourcent(self, ticker: str) -> float:
         """
@@ -141,6 +143,7 @@ class Functions:
 
         # target weight as normalized inverse-risk (sum to 100)
         target_fraction = inv_risks[ticker] / denom
+        print("weigth target ", target_fraction * 100.0)
         return target_fraction * 100.0
 
     def delta_weight(self, ticker: str) -> float:
@@ -151,52 +154,57 @@ class Functions:
         current = float(self.portefolio_dynamic[ticker].get("weight", 0.0))
         return target - current
 
-    def isTargetDeltaCorrect(self, result: float, ticker: str, threshold: float = 10.0) -> bool:
+    def isTargetDeltaCorrect(self, result: float, ticker: str, threshold: float = 5) -> bool:
         """
         Check if the absolute difference is within threshold percent points.
         """
         current = float(self.portefolio_dynamic[ticker].get("weight", 0.0))
         return abs(current - result) < threshold
 
-    def updatePortefolio(self):
+    def updatePortefolio(self, max_delta: float = 5.0):
         """
-        Create self.new_portefolio by applying target adjustments to dynamic tickers
-        while keeping constant tickers unchanged.
-        This is a conservative update: if target delta is too large, keep current weight.
+        Update self.new_portefolio based on target weights.
+        - If delta_weight exceeds max_delta %, clip the change to max_delta.
+        - The excess weight goes into 'Espace Disponible'.
         """
         self.new_portefolio = {}
-        espace_disponible = 0.0
+        self.espace_disponible = 0.0
 
-        # ensure structures are normalized
+        # Normaliser toutes les entrées dynamiques
         for t in list(self.portefolio_dynamic.keys()):
             self._ensure_entry_struct(self.portefolio_dynamic, t)
 
+        # Calcul des nouveaux poids pour les tickers dynamiques
         for ticker in self.portefolio_dynamic.keys():
             try:
-                tgt = self.weight_target(ticker)
-                if self.isTargetDeltaCorrect(tgt, ticker):
+                current = float(self.portefolio_dynamic[ticker].get("weight", 0.0))
+                target = self.weight_target(ticker)
+                delta = target - current
+                print(f"[DEBUG] {ticker}: current={current}, target={target:.2f}, delta={delta:.2f}")
+
+                if abs(delta) <= max_delta:
                     # accept target
-                    self.new_portefolio[ticker] = float(tgt)
+                    self.new_portefolio[ticker] = target
                 else:
-                    # too large change -> keep old
-                    self.new_portefolio[ticker] = float(self.portefolio_dynamic[ticker]["weight"])
+                    # clip delta to max_delta
+                    clipped_delta = max_delta if delta > 0 else -max_delta
+                    self.new_portefolio[ticker] = current + clipped_delta
+                    self.espace_disponible += abs(delta) - abs(clipped_delta)
+                    print(f"[DEBUG] {ticker}: clipped to {self.new_portefolio[ticker]:.2f}, excess -> Espace Disponible={self.espace_disponible:.2f}")
+
             except Exception as e:
                 print(f"⚠️ updatePortefolio error for {ticker}: {e}")
-                self.new_portefolio[ticker] = float(self.portefolio_dynamic[ticker].get("weight", 0.0))
+                self.new_portefolio[ticker] = current
 
-        # add constant tickers unchanged
+        # Ajouter les tickers constants inchangés
         for ticker in self.portefolio_constant.keys():
-            self.new_portefolio[ticker] = float(self.portefolio_constant[ticker]["weight"])
+            self._ensure_entry_struct(self.portefolio_constant, ticker)
+            self.new_portefolio[ticker] = float(self.portefolio_constant[ticker].get("weight", 0.0))
 
-        # compute espace disponible to make the total sum to 100 if needed
-        total = sum(self.new_portefolio.values())
-        if total < 100:
-            espace_disponible = 100.0 - total
-            self.new_portefolio["Espace Disponible"] = espace_disponible
-        else:
-            # optional: normalize to 100 or leave as is; here we keep as is and set espace to 0
-            self.new_portefolio["Espace Disponible"] = 0.0
+        # Ajouter l'espace disponible
+        self.new_portefolio["Espace Disponible"] = self.espace_disponible if self.espace_disponible > 0 else 0.0
 
+        print(f"[INFO] Nouveau portefeuille calculé: {self.new_portefolio}")
         return self.new_portefolio
 
     def plot_portfolio_comparison(self, title: str = "Comparaison des portefeuilles"):
@@ -232,53 +240,131 @@ class Functions:
         image = Image.open(buf).convert("RGBA")
         buf.close()
         return image
-    
+
+    def suggestStocks(self, top_n: int = 5, bucket: str = None, base_path: str = None):
+        """
+        Suggest stocks to buy based on top 10 and current portfolio.
+        Only suggest tickers not already in the portfolio.
+        Cross-check sectors from JSON files in S3 automatically detecting JSON filename.
+
+        Args:
+            top_n (int): number of stocks to suggest.
+            bucket (str): S3 bucket name.
+            base_path (str): S3 path prefix where each ticker folder contains JSON file with "secteurs".
+
+        Returns:
+            List of suggested tickers (up to top_n)
+            Dict mapping ticker -> secteurs
+            Dict of shared sectors among suggested tickers
+        """
+        if bucket is None or base_path is None:
+            raise ValueError("bucket and base_path must be provided")
+
+        # 1️⃣ Top 10 tickers not already in portfolio
+        available_top = [t for t in self.top_10_entreprises if t not in self.portefolio]
+        suggested = available_top[:top_n]
+
+        s3 = boto3.client("s3")
+        ticker_sectors = {}
+
+        # 2️⃣ Fetch sectors for each suggested ticker
+        for ticker in suggested:
+            folder_prefix = f"{base_path}/{ticker}"
+            try:
+                response = s3.list_objects_v2(Bucket=bucket, Prefix=folder_prefix)
+                if "Contents" not in response or len(response["Contents"]) == 0:
+                    print(f"⚠️ No files found in {folder_prefix}")
+                    ticker_sectors[ticker] = []
+                    continue
+
+                # Find the first JSON file
+                json_key = next((obj["Key"] for obj in response["Contents"] if obj["Key"].lower().endswith(".json")), None)
+                if json_key is None:
+                    print(f"⚠️ No JSON file found for {ticker} in {folder_prefix}")
+                    ticker_sectors[ticker] = []
+                    continue
+
+                # Read JSON content
+                obj = s3.get_object(Bucket=bucket, Key=json_key)
+                data = json.loads(obj["Body"].read().decode("utf-8"))
+                secteurs = data.get("secteurs", [])
+                ticker_sectors[ticker] = secteurs
+
+            except Exception as e:
+                print(f"⚠️ Could not fetch secteurs for {ticker}: {e}")
+                ticker_sectors[ticker] = []
+
+        # 3️⃣ Detect shared sectors
+        shared_sectors = {}
+        all_sectors = {}
+        for ticker, secteurs in ticker_sectors.items():
+            for secteur in secteurs:
+                all_sectors.setdefault(secteur, []).append(ticker)
+
+        for secteur, tickers in all_sectors.items():
+            if len(tickers) > 1:
+                shared_sectors[secteur] = tickers
+
+        return suggested, ticker_sectors, shared_sectors
+
 
 if __name__ == "__main__":
+    functions = Functions()
+    import boto3
+    import io
+    from dataExtractionFromLaw.dataExtractionFromLaw import getLawInformations
+
     BUCKET = "csv-file-store-ec51f700"
     LAW_KEY = "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html"
 
+    # Instancier la classe
     functions = Functions()
-    # importer un portefeuille initial
-    functions.importPorteFolio({
-        "AAPL": 25, "MSFT": 25, "GOOGL": 10, "AMZN": 10, "TSLA": 5,
-        "META": 5, "NVDA": 5, "PEP": 5, "COST": 5, "AVGO": 5
-    })
 
-    # récupérer le texte du fichier S3
+    # Portefeuille initial
+    initial_portfolio = {
+        "AAPL": 10, "MSFT": 10, "GOOGL": 10, "AMZN": 10, "TSLA": 10,
+        "META": 10, "NVDA": 10, "PEP": 10, "COST": 10, "AVGO": 10
+    }
+    functions.importPorteFolio(initial_portfolio)
+
+    # Récupérer le texte du fichier S3
     s3 = boto3.client("s3")
     law_content = s3.get_object(Bucket=BUCKET, Key=LAW_KEY)["Body"]
     SUM_LAW = getLawInformations(law_content)
 
-    # top10 entreprises
-    functions.getTop10(SUM_LAW, "Court terme")
+    # Top 10 entreprises
+    print("Top 10 entreprises:")
+    print(functions.getTop10(SUM_LAW, "Court terme"))
 
-    print("COMPUTING: ...")
+    # Calcul des impacts positifs
+    print("COMPUTING positive impact...")
     functions.computePositiveImpact(functions.portefolio, SUM_LAW)
 
     print("Portefeuille enrichi:", functions.portefolio)
-    functions.updatePortefolio()
-    print("Nouveau portefeuille:", functions.new_portefolio)
 
-    print("drawing...")
+    # 🔹 Mettre à jour le portefeuille avec debug
+    print("\nUpdating portfolio with max delta 5%...")
+    functions.updatePortefolio(max_delta=5.0)
+
+    print("\nNouveau portefeuille:")
+    for k, v in functions.new_portefolio.items():
+        print(f"{k}: {v:.2f}" if isinstance(v, float) else f"{k}: {v}")
+
+    print(f"\nFinal Espace Disponible: {functions.espace_disponible:.2f}")
+
+    # Dessiner comparaison
+    print("\nDrawing portfolio comparison...")
     img = functions.plot_portfolio_comparison()
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
-    buffer.seek(0)  # revenir au début du buffer
+    buffer.seek(0)
 
     # Upload vers S3
-    s3 = boto3.client("s3")
-    BUCKET = "csv-file-store-ec51f700"
-    KEY = "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/Camenbert/new_portefolio"  # chemin et nom dans le bucket
-
-    s3.put_object(
-        Bucket=BUCKET,
-        Key=KEY,
-        Body=buffer.getvalue(),
-        ContentType="image/png"
-    )
-
+    KEY = "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/Camenbert/new_portefolio.png"
+    s3.put_object(Bucket=BUCKET, Key=KEY, Body=buffer.getvalue(), ContentType="image/png")
     buffer.close()
+
+    functions.suggestStocks(5, BUCKET, "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/fillings")
     print(f"✅ New portfolio image uploaded to s3://{BUCKET}/{KEY}")
 
 functions = Functions()
