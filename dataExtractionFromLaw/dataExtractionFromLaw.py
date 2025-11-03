@@ -2,6 +2,8 @@ import boto3
 import instructor
 from pydantic import BaseModel
 
+from dataExtractionFromLaw.dataTranslateLaw import detect_language, translate_html_file
+
 s3 = boto3.client("s3")
 bedrock_client = boto3.client('bedrock-runtime')
 client = instructor.from_bedrock(bedrock_client)
@@ -21,6 +23,12 @@ class Law(BaseModel):
 
 def getLawInformations(file) -> Law:
     text_of_law = file.read().decode("utf-8")
+
+    #detected_lang = detect_language(text_of_law)
+
+    #if detected_lang != "en":
+        #text_of_law = translate_html_file(text_of_law)
+
     response = client.chat.completions.create(
         modelId="global.anthropic.claude-haiku-4-5-20251001-v1:0",
         messages=[
@@ -72,5 +80,8 @@ def getLawInformations(file) -> Law:
 
 
 if __name__ == "__main__":
-    law_info = getLawInformations(BUCKET, KEY)
+    BUCKET = "csv-file-store-ec51f700"
+    KEY = "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html"
+    file = s3.get_object(Bucket=BUCKET, Key=KEY)
+    law_info = getLawInformations(file["Body"])
     print(law_info)

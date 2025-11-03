@@ -28,7 +28,7 @@ class SpiderChartScore(BaseModel):
 
 
 class SpiderChart:
-    def __init__(self, ticker):
+    def __init__(self, ticker, text_of_law):
         self.ticker = ticker
         s3 = boto3.client("s3")
 
@@ -37,7 +37,7 @@ class SpiderChart:
         self.image_prefix =  f"dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data"
         self.law_key = f"dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html"
         
-        self.text_of_law =  getLawInformations(self.BUCKET, self.law_key)
+        self.text_of_law = text_of_law
 
         result = s3.list_objects_v2(Bucket=self.BUCKET, Prefix=self.prefix)
 
@@ -374,7 +374,7 @@ class SpiderChart:
 
         buffer.seek(0)
 
-        image = Image.open(buffer)
+        image = Image.open(buffer).copy()
 
         s3 = boto3.client("s3")
         s3.put_object(

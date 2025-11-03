@@ -98,12 +98,11 @@ st.markdown("""
             font-weight: 500;
             font-size: 0.9rem;
         }
-        .badge-tres-haut { background-color: #c0392b; } /* Rouge foncé */
-        .badge-haut { background-color: #e74c3c; }     /* Rouge */
-        .badge-moyen { background-color: #e67e22; }    /* Orange */
-        .badge-bas { background-color: #27ae60; }      /* Vert */
+        .badge-tres-haut { background-color: #c0392b; }
+        .badge-haut { background-color: #e74c3c; }
+        .badge-moyen { background-color: #e67e22; }
+        .badge-bas { background-color: #27ae60; }
 
-        /* Alternance des lignes dans la table */
         table {
             border-collapse: collapse;
             width: 100%;
@@ -131,12 +130,15 @@ st.markdown("""
 # --- APP CONTENT ---
 st.title("📈 Tok Tok Investissement")
 
-user_prompt = st.text_input("", placeholder="Demande des conseils sur les entreprises du S&P500")
+user_prompt = st.text_input(" ", placeholder="Demande des conseils sur les entreprises du S&P500", label_visibility="collapsed")
+
+# 
+user_porfolio = st.text_input(" ", placeholder="Ajoutez votre porfolio S&P500", label_visibility="collapsed")
 
 # Liste déroulante
 st.markdown("<p class='custom-label'>Choisissez votre horizon d’investissement :</p>", unsafe_allow_html=True)
 investment_horizon = st.selectbox(
-    "",
+    " ",
     ["Court terme", "Moyen terme", "Long terme"],
     index=1,
     label_visibility="collapsed"
@@ -165,7 +167,7 @@ if st.button("Tok me"):
                 df.index.name = "Entreprise"
                 df.reset_index(inplace=True)
 
-                # Renommer les colonnes pour affichage
+                # Renommer les colonnes
                 df.rename(columns={
                     "score_final": "Exposition globale",
                     "impact_temporiel": "Impact temporel"
@@ -192,6 +194,17 @@ if st.button("Tok me"):
                 st.success("✅ Analyse terminée avec succès !")
                 st.markdown("### Résultat de l’analyse :")
                 st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+                # Récupérer les graphes correspondants
+                spiderCharts = functions.getSpiderCharts(results.keys(), law_resume)
+
+                # --- Affichage direct de tous les graphes ---
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("### 📊 Graphes radar par entreprise :")
+
+                for entreprise in df["Entreprise"]:
+                    st.image(spiderCharts[entreprise], caption=f"Graphe radar de {entreprise}")
+                    st.markdown("<hr style='border:1px solid #333;'>", unsafe_allow_html=True)
 
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement : {e}")

@@ -156,8 +156,8 @@ def getConcernedEntreprises(law_summarized, entreprises_path: str, investment_ho
         )
     
 
-    return dict(sorted_results[:10]), dict(sorted_results)
-
+    return dict(sorted_results[:100]), dict(sorted_results)
+    #  change to a 100          ^
 
 if __name__ == "__main__":
     law_sum = getLawInformations("csv-file-store-ec51f700", "dzd-3lz7fcr1rwmmkw/5h6d6xccl72dn4/dev/data/directives/1.DIRECTIVE (UE) 20192161 DU PARLEMENT EUROPÉEN ET DU CONSEIL.html")
